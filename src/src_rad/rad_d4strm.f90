@@ -250,8 +250,8 @@ CONTAINS
       END IF 
       
       IF ( PRESENT(maerobin) .AND. PRESENT(naerobin) ) THEN
-         CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
-                       dz, taer, waer, wwaer)
+        CALL aero_rad(ib + size(solar_bands), nbins, nspec, maerobin, naerobin, &
+                       dz, taer, waer, wwaer)        
          CALL combineOpticalProperties(TauNoGas, wNoGas, pfNoGas, taer, waer, wwaer)
       END IF
 

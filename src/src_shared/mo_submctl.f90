@@ -37,9 +37,7 @@ MODULE mo_submctl
   TYPE(ProcessSwitch), POINTER :: lsicemelt => NULL()  ! Melting of ice
   TYPE(ProcessSwitch), POINTER :: lssecice => NULL()   ! Secondary ice production by three mechanisms:
                                                        ! rime splintering, fragmentation of freezing drops and ice-ice collisional breakup
-
-
-  !
+  
   ! Subprocess switches for microphysical processes; Note that master switch set to FALSE overrides any setting
   ! in the subprocess switches.
   ! ---------------------------------------------------------------------------------------------------------------
@@ -91,6 +89,8 @@ MODULE mo_submctl
   
   LOGICAL :: lcgupdt = .FALSE.      ! Switch for updating kernels with lscoag%mode = 2; Note: This is determined
                                     ! during runtime -> NOT a NAMELIST parameter!
+  ! ---------------------------------------------------------------------------------------------------------------                                 
+   
   ! Aggregation efficiency range for ice. Assumed to be inversely proportional to rime fraction
   ! within this range
   REAL :: Eiagg_max = 0.3

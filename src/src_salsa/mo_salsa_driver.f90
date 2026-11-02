@@ -421,7 +421,6 @@ CONTAINS
                ! If reduced coagulation kernel update frequency and is update timestep, store the updated kernels
                IF (lscoag%mode == 2 .AND. lcgupdt) &
                     CALL store_coag(kk,ii,jj)
-               
             END DO !kk
          END DO ! ii
       END DO ! jj

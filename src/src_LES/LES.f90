@@ -116,7 +116,8 @@ CONTAINS
                                   useMcICA,      &
                                   laerorad,      &
                                   RadConstPress, &
-                                  RadPrecipBins
+                                  RadPrecipBins, &
+                                  
     USE mcrp, ONLY              : sed_aero, sed_cloud, sed_precp, sed_ice, init_mcrp_switches, &
                                   bulk_autoc, bulkScheme
     USE mpi_interface, ONLY     : myid, appl_abort, ver, author
@@ -170,8 +171,8 @@ CONTAINS
          useMcICA,                 & ! Use the Monte Carlo Independent Column Approximation method (T/F)
          laerorad,                 & ! Use the binned aerosol data for radiation (with SALSA)
          RadConstPress,            & ! keep constant pressure levels (T/F) 
-         RadPrecipBins               ! add precipitation bins cloud water (0, 1, 2, 3,...)
-    
+         RadPrecipBins             & ! add precipitation bins cloud water (0, 1, 2, 3,...)
+             
     NAMELIST /nudge/               &
          nudge_time,               & ! Total nudging time (independent of spin-up)
          nudge_zmin, nudge_zmax,   & ! Altitude (m) range for nudging

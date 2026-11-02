@@ -16,7 +16,7 @@
 IsSeq=1 # 0 for mpi runs with CRAY, 1 for mpi runs with Roihu, 2 for sequential, 3 for mpi on laptop
 
 EXPNAME="campaign_case_date_aaa"  # Name of the experiment
-PROJECT="project_xxxxx"   # Project name, needed for resource allocation in PUHTI
+PROJECT="project_xxxxx"   # Project name, needed for resource allocation in ROIHU
 
 NPROCS=384          # Number of processors (for IsSeq==0)
 NNODES=7
@@ -252,7 +252,8 @@ cat > NAMELIST <<EOF
    lscoag%switch = .TRUE.
    lscoag%delay = ${Tspinup}
    lscoag%mode = 1   ! 1: update kernels every timestep, 2: reduced update freq
-   cgintvl = 5.     ! for mode = 2, update interval in seconds
+   cgintvl = 5.      ! for mode = 2, update interval in seconds
+   
 
    lscnd%switch = .TRUE.
 

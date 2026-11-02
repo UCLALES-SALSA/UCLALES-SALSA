@@ -471,7 +471,7 @@ CONTAINS
                              lsicenucl,             &
                              lsicemelt,             &
                              lssecice,              &
-
+                             
                              lscgaa,lscgcc,lscgpp,  &
                              lscgca,lscgpa,lscgpc,  &
                              lscgia,lscgic,lscgii,  &
@@ -481,6 +481,7 @@ CONTAINS
 
                              
                              cgintvl,               &
+                             aeroradintvl,          &
                              
                              lscndgas,                    &
                              lscndh2oae,lscndh2ocl,       &
@@ -773,7 +774,7 @@ CONTAINS
      nii_ibr  = 0.; mii_ibr  = 0.
      
    END SUBROUTINE initialize_secondary_ice
-   
+     
    
    !-------------------------------------------------------------------------------
    !

@@ -10,8 +10,9 @@ MODULE radiation_main
   USE grid, ONLY : iradtyp, nxp, nyp, nzp,       &
                    sst, cntlat, CCN, level
 
-  USE mo_submctl, ONLY : nprc,ira,fra,spec
+  USE mo_submctl, ONLY : nprc,ira,fra,spec, lsaerorad
   USE radiation, ONLY : d4stream
+  
   IMPLICIT NONE
   
   REAL    :: sfc_albedo = 0.1
@@ -67,24 +68,14 @@ MODULE radiation_main
                                           nprc+min(RadPrecipBins,fra)),DIM=4)
             znc(:,:,:) = znc(:,:,:) + SUM(a_nprecpp%d(:,:,:,ira:min(RadPrecipBins,fra)),DIM=4)
          END IF
-         IF (laerorad) THEN
-            CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo,   &
+         
+         CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo,   &
            	          dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
                           zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
                           a_fuir%d, a_fdir%d, albedo%d, radsounding=radsounding,    &
                           useMcICA=useMcICA, ConstPrs=RadConstPress,                &
                           maerop=a_maerop%d, naerop=a_naerop%d,	                    &
                           todlw=a_todlw%d,todsw=a_todsw%d)
-         ELSE
-            CALL d4stream(nzp, nxp, nyp, nspec, cntlat, time_in, sst, sfc_albedo,   &
-                          dn0%d, pi0%d, pi1%d, dzt%d, a_pexnr%d, a_temp%d, a_rp%d,  &
-                          zrc, znc, a_tt%d, a_rflx%d, a_sflx%d, a_fus%d, a_fds%d,   &
-                          a_fuir%d, a_fdir%d, albedo%d, radsounding=radsounding,    &
-                          useMcICA=useMcICA, ConstPrs=RadConstPress,                & 
-                          maerop=a_maerop%d, naerop=a_naerop%d,	                    &
-                          todlw=a_todlw%d,todsw=a_todsw%d)
-         END IF
-
       ! 
       ! Level 5
       ! ----------
