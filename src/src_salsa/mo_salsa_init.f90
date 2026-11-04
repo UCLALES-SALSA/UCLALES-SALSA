@@ -481,7 +481,6 @@ CONTAINS
 
                              
                              cgintvl,               &
-                             aeroradintvl,          &
                              
                              lscndgas,                    &
                              lscndh2oae,lscndh2ocl,       &

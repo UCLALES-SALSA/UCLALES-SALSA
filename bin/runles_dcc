@@ -189,11 +189,12 @@ cat > NAMELIST <<EOF
 ! ------------------------------------------------------------------------------------
 
 &radiation
-  radsounding = 'datafiles/kmls.lay' ! Modify according to your case
-  sfc_albedo = 0.11 ! 
-  	       	    ! 
-  laerorad = .FALSE. 
+  radsounding = 'datafiles/kmls.lay'  
+  sfc_albedo = 0.11 ! Venäläinen et al. 1998.Boreal Env. Res. 3: 171–180
   useMcICA = .TRUE. ! Monte Carlo spectral integration J. Adv. Model. Earth Syst., Vol. 1, Art. #1, 9 pp.
+  laerorad = .TRUE. 
+  RadConstPress = .FALSE.
+  RadPrecipBins = 20 ! Between 0 and bloPrc%nbins to include rainwater in radiative transfer calculations
 /
 
 ! -------------------------------------------------------------------------------------

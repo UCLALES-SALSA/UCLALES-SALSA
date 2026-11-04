@@ -10,7 +10,7 @@ MODULE radiation_main
   USE grid, ONLY : iradtyp, nxp, nyp, nzp,       &
                    sst, cntlat, CCN, level
 
-  USE mo_submctl, ONLY : nprc,ira,fra,spec, lsaerorad
+  USE mo_submctl, ONLY : nprc,ira,fra,spec
   USE radiation, ONLY : d4stream
   
   IMPLICIT NONE

@@ -47,7 +47,7 @@ MODULE radiation
     SUBROUTINE d4stream(n1, n2, n3, nspec, alat, time, sknt, sfc_albedo, dn0, pi0, pi1, dzm, &
                         pip, tk, rv, rc, nc, tt, rflx, sflx, afus, afds, afuir, afdir, &
                         albedo, rr, ice, nice, grp, radsounding, useMcICA, ConstPrs, maerop, naerop,&
-                        todlw,todsw,lsaerorad)
+                        todlw,todsw)
 
       USE mpi_interface, ONLY : myid, pecount
       INTEGER, INTENT (in) :: n1, n2, n3, nspec                                ! nzp, nxp, nyp, nspec
