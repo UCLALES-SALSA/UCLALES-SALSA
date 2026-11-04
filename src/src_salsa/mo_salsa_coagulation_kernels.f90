@@ -279,7 +279,7 @@ MODULE mo_salsa_coagulation_kernels
       dsph2 = pp2%dwet
       
       mass1 = MERGE(masspri1+massrim1,pp1%rhomean*pi6*dsph1**3,pp1%phase == 4)
-      mass2 = MERGE(masspri2+massrim2,pp2%rhomean*pi6*dsph2**3,pp1%phase == 4)
+      mass2 = MERGE(masspri2+massrim2,pp2%rhomean*pi6*dsph2**3,pp2%phase == 4)
 
       ! If this is for self coagulation, put a minor offset on the particle diameters to account for
       ! the bin width

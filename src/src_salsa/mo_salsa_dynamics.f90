@@ -738,7 +738,7 @@ CONTAINS
                                                             ! could just use the "current" value if it wasn't updated in the substepping loop)
       REAL :: zorgri(nice)                                  ! The same for rime
       
-      REAL :: zdfh2o, zthcond,rhoair,ssi,zmfpth,zdfh2oc, zthcondc
+      REAL :: zdfh2o, zthcond,rhoair,ssi,zmfpth,zdfh2oc, zthcondc,dh
       REAL :: zbeta,zknud,zmfph2o,knud,Cunninghamc
       REAL :: zact, zhlp1,zhlp2,zhlp3
       REAL :: adt,ttot
@@ -805,9 +805,10 @@ CONTAINS
             rhoair = mair*ppres(ii,jj)/(rg*ptemp(ii,jj))            
             visc = (7.44523e-3*SQRT(ptemp(ii,jj)**3))/(5093.*(ptemp(ii,jj)+110.4)) ! viscosity of air [kg/(m s)] Hinds,p.25 ~ Jacobson FAM eq.4-54
             mfp = (1.656e-10*ptemp(ii,jj)+1.828e-8)*pstand/ppres(ii,jj) ! mean free path of air
-            zthcond = 0.023807 + 7.1128e-5*(ptemp(ii,jj) - 273.16)     ! Thermal conductivity of air Jacobson FAM eq.2.3
-            zmfpth  = 3.*zthcond*sqrt(pi*mair/(8.*rg*ptemp(ii,jj)))    ! Thermal mean free path Jacobson FAM eq.17.29
-            cpm = cpa*(1+1.84*prv(ii,jj)) ! Heat capacity of moist air  Stull Meteorology eq.3I3 
+            zthcond = 0.023807 + 7.1128e-5*(ptemp(ii,jj) - 273.16)      ! Thermal conductivity of air Jacobson FAM eq.2.3
+            dh = zthcond / rhoair / cpa                                 ! molecular thermal diffusivity Jacobson FAM eq.8.1
+            zmfpth  = 3.*dh*sqrt(pi*mair/(8.*rg*ptemp(ii,jj)))          ! Thermal mean free path Jacobson FAM eq.17.29
+            cpm = cpa*(1+1.84*prv(ii,jj))                               ! Heat capacity of moist air  Stull Meteorology eq.3I3 
             
             !Condensing gas properties
             ! Diffusion coef
