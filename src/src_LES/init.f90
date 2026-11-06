@@ -615,7 +615,7 @@ contains
   !
   subroutine random_pert(n1,n2,n3,zt,fld,zmax,ampmax,normalize,opt,target_name)
 
-    use mpi_interface, only :  myid
+    use mpi_interface, only :  myid, get_rand_arr
 
     use util, only : sclrset, get_pustat_scalar
     implicit none
@@ -627,14 +627,22 @@ contains
     integer, intent(in) :: opt
     character(len=*), intent(in) :: target_name
 
-    real :: rand(3:n2-2,3:n3-2), xx, xxl, tot, xmag
+    real :: xx, xxl, tot, xmag
     integer :: i,j,k,kmx
+    real, allocatable :: rand3d(:,:,:)
 
     tot =0.
     kmx = COUNT(zt(:)<zmax)
-    do k=2,kmx
-       call random_number(rand)
 
+    ! Random numbers
+    allocate(rand3d(kmx,n2,n3))
+    if (iseed>=0) then
+        call random_number(rand3d)
+    else
+        call get_rand_arr(kmx,n2,n3,rand3d)
+    endif
+
+    do k=2,kmx
        if (opt==0) then
           ! Linear decrease from surface up to zmax
           xmag = ampmax*(zmax - zt(k))/zmax
@@ -645,8 +653,8 @@ contains
        xx = 0.
        do j=3,n3-2
           do i=3,n2-2
-             fld(k,i,j) = fld(k,i,j) + rand(i,j)*xmag
-             xx = xx + rand(i,j)*xmag
+             fld(k,i,j) = fld(k,i,j) + rand3d(k,i,j)*xmag
+             xx = xx + rand3d(k,i,j)*xmag
           end do
        end do
 
@@ -662,11 +670,13 @@ contains
        print *
        print *,'-------------------------------------------------'
        print *,' Inserting random '//target_name//' perturbations'
-       print 600,zt(kmx),rand(3,3),tot
+       print 600,zt(kmx),rand3d(2,3,3),tot
        print *,'-------------------------------------------------'
     endif
 
     call sclrset('cnst',n1,n2,n3,fld)
+
+    deallocate(rand3d)
 
     return
 
@@ -686,7 +696,13 @@ contains
     ! Initialize seed based on given iseed (not negative)
     call random_seed(size=n)
     allocate (seed(n))
-    seed = MAX(0,iseed) * (/ (i, i = 1, n) /) + myid
+    if (iseed>=0) then
+        ! Different random numbers for each PU
+        seed = MAX(0,iseed) * (/ (i, i = 1, n) /) + myid
+    else
+        ! The same random numbers for each PU - sampled from the full domain
+        seed = ABS(iseed) * (/ (i, i = 1, n) /)
+    endif
     call random_seed(put=seed)
     deallocate (seed)
     ! The first random numbers can be similar, so sample

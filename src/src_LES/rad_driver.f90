@@ -23,9 +23,9 @@ module radiation
   ! avoid errors with SALSA. 
   ! Juha Tonttila, FMI
 
-
-  use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv, ep2, Rd, g
+  use defs, only       : cp, rcp, cpr, rowt, roice, p00, pi, nv1, nv, ep2, Rd, g, lwrnd, swrnd
   use fuliou, only     : rad, rad_init, minSolarZenithCosForVis, rad_tau
+  use mpi_interface, only : get_rand_arr
   implicit none
 
   real, parameter :: SolarConstant = 1.365e+3
@@ -49,6 +49,9 @@ module radiation
   logical, save     :: first_time = .True.
   real, allocatable, save ::  pp(:), pt(:), ph(:), po(:), pre(:), pde(:), &
        plwc(:), piwc(:), prwc(:), pgwc(:), fds(:), fus(:), fdir(:), fuir(:)
+
+  ! Random numbers
+  real, allocatable, save :: rad_rand(:,:,:)
 
   contains
 
@@ -158,6 +161,12 @@ module radiation
          u0 = zenith(alat,time)
       ENDIF
       !
+      ! Random numbers
+      IF (useMcICA) THEN
+        IF (.NOT.ALLOCATED(rad_rand)) ALLOCATE(rad_rand(2,n2,n3))
+        CALL get_rand_arr(2,n2,n3,rad_rand)
+      ENDIF
+      !
       ! call the radiation
       !
       prw = (4./3.)*pi*rowt
@@ -224,6 +233,11 @@ module radiation
                end if
 
             end do
+
+            IF (useMcICA) THEN
+                lwrnd=rad_rand(1,i,j)
+                swrnd=rad_rand(2,i,j)
+            ENDIF
 
             if (present(ice).and.present(rr).and.present(grp)) then
                 call rad( sfc_albedo, u0, SolarConstant, sknt, ee, pp, pt, ph, po,&

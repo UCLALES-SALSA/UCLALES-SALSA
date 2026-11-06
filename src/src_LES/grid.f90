@@ -607,7 +607,7 @@ contains
   !
   subroutine define_grid
 
-    use mpi_interface, only: xoffset, yoffset, wrxid, wryid, nxpg, nypg,   &
+    use mpi_interface, only: xoffset, yoffset, wrxid, wryid, nxg, nyg,   &
          appl_abort, myid
 
     integer :: i,j,k,kmax,nchby,nz
@@ -627,7 +627,7 @@ contains
     dzmin = 0.
     dxi=1./deltax
     dyi=1./deltay
-    allocate(wsavex(4*nxpg+100),wsavey(4*nypg+100))
+    allocate(wsavex(4*nxg+100),wsavey(4*nyg+100))
     wsavex=0.0
     wsavey=0.0
 
@@ -635,20 +635,18 @@ contains
     ! define xm array for grid 1 from deltax
     !
     allocate (xm(nxp))
-    xm(1)=-float(max(nxpg-2,1))*.5*deltax+xoffset(wrxid)*deltax
-    do i=2,nxp-1
+    xm(1)=-float(max(nxg+2,1))*.5*deltax+xoffset(wrxid)*deltax
+    do i=2,nxp
        xm(i)=xm(i-1)+deltax
     end do
-    xm(nxp)=2*xm(nxp-1)-xm(nxp-2)
     !
     ! define ym array for grid 1 from deltay
     !
     allocate (ym(nyp))
-    ym(1)=-float(max(nypg-2,1))*.5*deltay+yoffset(wryid)*deltay
-    do j=2,nyp-1
+    ym(1)=-float(max(nyg+2,1))*.5*deltay+yoffset(wryid)*deltay
+    do j=2,nyp
        ym(j)=ym(j-1)+deltay
     end do
-    ym(nyp)=2*ym(nyp-1)-ym(nyp-2)
 
     !
     !      define where the momentum points will lie in vertical
@@ -781,8 +779,8 @@ contains
   !
   if(myid == 0) then
      write(6,fm1)
-     write(6,fm2) nxpg-4, deltax, 2.*xt(nxp-2)
-     write(6,fm3) nypg-4, deltay, 2.*yt(nyp-2)
+     write(6,fm2) nxg, deltax, 2.*xt(nxp-2)
+     write(6,fm3) nyg, deltay, 2.*yt(nyp-2)
 
      write(6,fm4) nzp,zm(2)-zm(1),zm(nzp)
      write(6,fm5) dtl
@@ -1322,7 +1320,7 @@ contains
 
     END IF
 
-    if (myid==0) print "(/' ',12('-'),'   Record ',I3,' to: ',A80)",    &
+    if (myid==0) print "(/' ',12('-'),'   Record ',I4,' to ',A80)",    &
          nrec0,fname
 
     iret  = nf90_sync(ncid0)

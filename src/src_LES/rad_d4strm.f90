@@ -19,7 +19,7 @@
 !
 module fuliou
 
-  use defs, only   : nv, nv1, mb, pi, g, Rd, ep2
+  use defs, only   : nv, nv1, mb, pi, g, Rd, ep2, lwrnd, swrnd
   use cldwtr, only : init_cldwtr, cloud_water, init_cldrain, cloud_rain, &
     init_cldice, cloud_ice, init_cldgrp, cloud_grp
   use solver, only : qft
@@ -154,7 +154,7 @@ contains
        ! Select a single band and g-point (ib, ig1) and use these as the limits
        !   in the loop through the spectrum below. 
        !
-       call random_number(randomNumber)
+       randomNumber=lwrnd
        call select_bandg(ir_bands, bandweights, randomNumber, ib, ig1) 
        ig2 = ig1
        iblimit = 1
@@ -291,7 +291,7 @@ contains
          ! Select a single band and g-point (ib, ig1) and use these as the 
          ! limits in the loop through the spectrum below. 
          !
-         call random_number(randomNumber)
+         randomNumber=swrnd
          call select_bandg(solar_bands, bandweights, randomNumber, ib, ig1) 
          ig2 = ig1
          iblimit = 1 

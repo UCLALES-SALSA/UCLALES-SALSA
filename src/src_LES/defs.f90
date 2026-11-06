@@ -21,6 +21,7 @@
 module defs
 
   integer :: nv=1, nv1=2, mb=1 ! radiation
+  real :: swrnd=-1., lwrnd=-1. ! radiation (McICA)
   real, parameter :: Rd     = 287.04 ! gas constant for dry air
   real, parameter :: Rm     = 461.5  ! ... and water vapor (J/K/kg)
   real, parameter :: ep     = Rd/Rm

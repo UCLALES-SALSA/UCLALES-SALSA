@@ -1303,6 +1303,7 @@ contains
   ! Other column statistics
   subroutine set_cs_other(time)
     USE grid, ONLY : nxp, nyp, xt, xm, yt, ym, albedo
+    use mpi_interface, only : myid
     ! Inputs
     REAL, INTENT(IN) :: time
     ! Local variables
@@ -1339,6 +1340,8 @@ contains
         iret = nf90_inq_varid(ncid3,out_cs_list(i),VarID)
         IF (iret==NF90_NOERR) iret = nf90_put_var(ncid3, VarID, out_cs_data(3:nxp-2,3:nyp-2,i), start=(/1,1,nrec3/))
     END DO
+
+    if (myid==0) print "(/' ',12('-'),'   Record ',I4,' to column averages')",nrec3
 
     iret = nf90_sync(ncid3)
 

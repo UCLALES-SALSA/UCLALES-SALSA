@@ -53,7 +53,7 @@ contains
     use stat, only : sflg, csflg, cswrite, cs_start, savg_intvl, ssam_intvl, &
          write_ps, close_stat, fill_scalar
     use modcross, only : lcross, frqcross, triggercross, close_cross
-    real, parameter :: cfl_upper = 0.5
+    real, parameter :: cfl_upper = 0.25 ! Half of the original due to the longer pressure time step
 
     real    :: t1,t2,tplsdt,cflmax,gcflmax
     integer :: istp, iret

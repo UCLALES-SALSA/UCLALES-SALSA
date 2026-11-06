@@ -606,12 +606,10 @@ contains
     real(kind=8), intent(in) :: xxl(n)
     integer:: ierror
 
-
     call mpi_allreduce(xxl,xxg,n,MPI_DOUBLE_PRECISION, MPI_MAX, &
          MPI_COMM_WORLD, ierror)
 
   end subroutine double_array_par_max
-
 
   subroutine double_array_par_sum(xxl,xxg,n)
 
@@ -620,11 +618,25 @@ contains
     real(kind=8), intent(in) :: xxl(n)
     integer:: ierror
 
-
     call mpi_allreduce(xxl,xxg,n,MPI_DOUBLE_PRECISION, MPI_SUM, &
          MPI_COMM_WORLD, ierror)
 
   end subroutine double_array_par_sum
 
+  !
+  !---------------------------------------------------------------------------
+  ! get random array that is independent of the number of processors
+  !
+  subroutine get_rand_arr(n1,n2,n3,arr)
+    integer, intent(in) :: n1,n2,n3
+    real, intent(out) :: arr(n1,n2,n3)
+    real, allocatable :: garr(:,:,:)
+    ! Global random array
+    allocate( garr(n1,nxpg,nypg) )
+    call random_number(garr)
+    ! Local random array
+    arr(:,1:n2,1:n3) = garr(:,xoffset(wrxid)+1:xoffset(wrxid)+n2,yoffset(wryid)+1:yoffset(wryid)+n3)
+    deallocate( garr )
+  end subroutine get_rand_arr
 
 end module mpi_interface

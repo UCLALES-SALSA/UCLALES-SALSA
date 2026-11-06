@@ -301,5 +301,15 @@ contains
 
   end subroutine double_array_par_sum
 
+  !
+  !---------------------------------------------------------------------------
+  ! get random array that is independent of the number of processors
+  !
+  subroutine get_rand_arr(n1,n2,n3,arr)
+    integer, intent(in) :: n1,n2,n3
+    real, intent(out) :: arr(n1,n2,n3)
+    ! Global random array = local random array
+    call random_number(arr)
+  end subroutine get_rand_arr
 
 end module mpi_interface
