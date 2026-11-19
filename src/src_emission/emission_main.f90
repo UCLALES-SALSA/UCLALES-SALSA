@@ -6,16 +6,17 @@ MODULE emission_main
   USE mo_seasalt_emission
 
   USE mo_submctl, ONLY : pi6, in1a, fn2a, in2b, fn2b, nbins, nliquid, spec, pi6, prlim, &
-                         ice_theta_dist, ica, fca, icb, fcb, ncld, nprc
+                         ice_theta_dist, ica, fca, icb, fcb, ncld, nprc,nice,nfrozen
 
-  USE mo_salsa_types, ONLY : aero
+  USE mo_salsa_types, ONLY : aero,ice
 
   USE mo_salsa_sizedist, ONLY : size_distribution  ! Could this be packaged somehow differently?
 
   USE mo_aux_state, ONLY : dzt,zt,xt,yt
   USE mo_progn_state, ONLY : a_maerot, a_naerot, a_naerop, a_indefp, a_indeft,  & 
-                             a_chargeTimep, a_chargeTimet, a_ncloudp, a_nprecpp
-  USE mo_diag_state, ONLY : a_dn
+                             a_chargeTimep, a_chargeTimet, a_ncloudp, a_nprecpp,&
+                             a_micet, a_nicet
+  USE mo_diag_state, ONLY : a_dn,a_temp
  
   !USE mo_vector_state, ONLY : a_up, a_vp ! needed for the seasalt thing
   USE grid, ONLY: deltax, deltay, deltaz, dtlt, &                  
@@ -72,6 +73,10 @@ MODULE emission_main
             emdT3 => emitType3(pr)
             conditionT3 = getConditionT3(emdT3,time_in)
             IF (conditionT3 > 0) CALL charging_typ3(edt,emd,emdT3,time_in,conditionT3)
+         ELSE IF (emd%emitType == 6) THEN
+            emdT3 => emitType3(pr)
+            conditionT3 = getConditionT3(emdT3,time_in)
+            IF (conditionT3 > 0) CALL custom_emission_inp_typ3(edt,emd,emdT3,time_in,conditionT3)
          END IF
          
        END ASSOCIATE
@@ -437,6 +442,8 @@ MODULE emission_main
   SUBROUTINE charging_typ3(edt,emd,emdT3,time,conditionT3)
    USE mo_derived_state, ONLY : Dwaba, Dwabb, Dwcba, Dwcbb, Dwpba
    USE emission_types, ONLY : chargeTMax
+   USE mo_progn_state, ONLY : a_maerot, a_naerot, a_naerop, a_indefp, a_indeft,  & 
+                             a_chargeTimep, a_chargeTimet, a_ncloudp, a_nprecpp
    IMPLICIT NONE
  
    REAL, INTENT(in) :: time
@@ -510,6 +517,81 @@ MODULE emission_main
  END SUBROUTINE charging_typ3
 
 
+! -----------------------------------------------------------------------------
+! Subroutine custom_emission_INP using map:
+!
+  SUBROUTINE custom_emission_inp_typ3(edt,emd,emdT3,time,conditionT3)
+    
+    IMPLICIT NONE
+  
+    REAL, INTENT(in) :: time
+    CHARACTER(len=50), PARAMETER :: name = "cloud_seeding_inp_typ3"
+    INTEGER, INTENT(in) :: conditionT3
+    TYPE(EmitSizeDist), INTENT(in) :: edt       ! Emission data instance
+    TYPE(EmitConfig), INTENT(in) :: emd         ! Emission configuration instance
+    TYPE(EmitType3Config), INTENT(inout) :: emdT3  ! Emission type 3 configuration instance
+
+    
+    INTEGER :: j,bb,ss,mm, xx,yy,zz1,zz2,k
+    REAL :: dt, t_str,t_end, frac
+    INTEGER :: ind, i_str,i_end, di
+
+   ! The point source will always be in 1 PE at a time
+    !IF (myid == 0) THEN
+       WRITE(*,*) '========================================'
+       WRITE(*,*) 'CALCULATING INP EMISSIONS NO CHARGE TYPE = 3'
+       WRITE(*,*) '========================================'
+    !END IF
+   
+    ASSOCIATE( ix => emdT3%ix, iy => emdT3%iy, iz => emdT3%iz, t => emdT3%t, np => emdT3%np, &
+               t_trac => emdT3%t_trac,t_in => emdT3%t_in, t_out => emdT3%t_out, &
+               z_expan_up => emd%z_expan_up, z_expan_dw => emd%z_expan_dw)
+      
+      t_str = MAX(t_in(conditionT3), t_trac)
+      t_end = MIN(t_out(conditionT3), (time + dtlt) )  
+      i_str = MAXLOC(t, 1, mask = t <= t_str)
+      i_end = MAXLOC(t, 1, mask = t < t_end)
+      
+      di = i_end - i_str + 1
+      DO bb = 1,nfrozen  
+	 DO j = 1, di
+	    
+	    dt  = ( MIN(t_end, t(i_str+j)) - MAX(t_str, t(i_str+j-1)) )/dtlt
+	    ind = i_str+j-1
+	    xx = ix(ind); yy = iy(ind)
+	    zz1 = iz(ind)-z_expan_dw; zz2 = iz(ind)+z_expan_up
+
+	    DO k = zz1,zz2
+	        ! frac is the freezing ability of AgI particles 400 nm as measured by Marcolli et al. (2016)
+	        ! Fitting in Atmos. Chem. Phys., 24, 6825–6844, 2024 https://doi.org/10.5194/acp-24-6825-2024
+	       frac = 0.97-0.97/(1+EXP(-0.88*(a_temp%d(k,xx,yy)-263.95)))
+	        
+	    	IF (bb <= nbins) THEN
+	    	       a_naerot%d(k,xx,yy,bb) = &
+		            a_naerot%d(k,xx,yy,bb) + edt%numc(bb) * dt * MAX((1-frac),0.)
+		            	    	
+		       a_nicet%d(k,xx,yy,1) = &
+			    a_nicet%d(k,xx,yy,1) + edt%numc(bb) * dt * frac
+			  
+		       DO ss = 1,spec%getNSpec(type="wet")
+			  mm = getMassIndex(nbins,bb,ss)
+			  a_micet%d(k,xx,yy,mm) = &
+			       a_micet%d(k,xx,yy,mm) + edt%mass(mm) * dt * frac
+			       
+			  a_maerot%d(k,xx,yy,mm) = &
+			       a_maerot%d(k,xx,yy,mm) + edt%mass(mm) * dt * MAX((1-frac),0.)
+		       END DO
+		END IF            
+	    END DO
+	END DO
+      END DO
+      
+      t_trac = time + dtlt
+      
+    END ASSOCIATE
+  END SUBROUTINE custom_emission_inp_typ3
+  
+  
   ! ----------------------------------------------------------
   
   FUNCTION getCondition(emd,time)

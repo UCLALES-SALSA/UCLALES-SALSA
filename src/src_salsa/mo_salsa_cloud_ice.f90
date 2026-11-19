@@ -102,7 +102,7 @@ MODULE mo_salsa_cloud_ice
              pf_imm = 0.
              IF ( dins > dmin .AND. lsiceimm .AND. ANY(phase == [2,3]) ) THEN
                 jf = calc_Jhet(dins,ptemp(ii,jj),Sw_eq)
-                pf_imm = 1. - EXP( -jf*ptstep )
+                pf_imm = 1. - EXP( -jf*ptstep ) 
              END IF
 
              ! Deposition freezing

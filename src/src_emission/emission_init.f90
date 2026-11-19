@@ -23,8 +23,8 @@ MODULE emission_init
       INTEGER :: st,en
       INTEGER :: nprof
       INTEGER :: mb1,mb12,mb2,mb22,nc1,nc2
-      REAL :: core(nbins), naero(1,1,nbins)
-      REAl, ALLOCATABLE ::  x(:), y(:), z(:)
+      REAL :: core(nbins), naero(1,1,nbins),corew(nbins)
+      REAL, ALLOCATABLE ::  x(:), y(:), z(:)
       
       DO nprof = 1,nEmissionModes
          
@@ -61,7 +61,7 @@ MODULE emission_init
               ! Index limits for the regimes
               CALL regime_limits(emd%regime,st,en)
               
-              IF (emd%emitSizeDistType == 1 ) THEN ! Monochromatic aerosol
+              IF (emd%emitSizeDistType == 1 .AND. emd%emitType .NE. 6 ) THEN ! Monochromatic aerosol
                  
                  ! Determine the destination bin of the monochromatic emission from the
                  ! specified diameter
@@ -72,15 +72,31 @@ MODULE emission_init
                  CALL bin_indices(nprof,nbins,st,en,   &
                                   nc1, nc2, mb1, mb2,  &
                                   mb12, mb22, ibin=ibin)
-                 
                  ! Place the emission number and mass concentrations to the emission data instance
                  edt%numc(st+ibin) = emd%emitNum
-                 edt%mass(mb1) = emd%emitNum *   &
-                      (pi6*emd%emitDiam**3)*spec%rholiq(nc1)
-                 ! Small amount of water due the condensation issue
-                 edt%mass(mb2) = 0.001 * edt%mass(mb1)
+                              
+		 edt%mass(mb1) = emd%emitNum *   &
+		              (pi6*emd%emitDiam**3)*spec%rholiq(nc1)
+		! Small amount of water due the condensation issue
+		 edt%mass(mb2) = 0.001 * edt%mass(mb1)
+	      
+	      ELSE IF (emd%emitSizeDistType == 1 .AND. emd%emitType .EQ. 6 ) THEN ! Monochromatic INPs
+	         ! Determine the destination bin of the monochromatic emission from the
+                 ! specified diameter
+                 ibin = smaller(aetot%d(st:en),emd%emitDiam) - 1
                  
-              ELSE IF (emd%emitSizeDistType == 2 ) THEN! Lognormal mode
+	         CALL bin_indices(nprof,nbins,st,en,   &
+                                  nc1, nc2, mb1, mb2,  &
+                                  mb12, mb22, ibin=ibin)
+	         ! mass of the insoluble species
+	         edt%numc(st+ibin) = emd%emitNum
+	         ! water mass assuming a growth factor of 1.x
+	         edt%mass(mb1) = emd%emitNum *   &
+		              (pi6*emd%emitDiam**3)*spec%rholiq(nc1)
+		 edt%mass(mb2) = pi6*((1.1*emd%emitDiam)**3-(emd%emitDiam)**3)*spec%rhoic
+		 
+                 
+              ELSE IF (emd%emitSizeDistType == 2.AND. emd%emitType .NE. 6) THEN! Lognormal mode
                  
                  ! Consider specified emitNum and emitDiam as lognormal mode values. Also emitSigma needs to be specified here
                  
@@ -105,11 +121,34 @@ MODULE emission_init
                  edt%mass(mb1:mb12) = naero(1,1,st:en)*core(st:en)*spec%rholiq(nc1)
                  ! Small amount of water
                  edt%mass(mb2:mb22) = 0.001 * edt%mass(mb1:mb12)
+               
+               ELSE IF (emd%emitSizeDistType == 2.AND. emd%emitType .EQ. 6) THEN! Lognormal mode INPs
+                 ! mass of the insoluble species
+                 core(:) = pi6 * aero(1,1,:)%dmid**3
+                 ! mass of water assuming growth factor of 1.x
+                 corew(:) = pi6 * (1.1*aero(1,1,:)%dmid)**3
+                ! Get the binned size distribution (brackets used because size_distribution expects arrays for mode values)
+                 naero = 0.
+                 CALL size_distribution( 1,1,1,1,st,en,   &
+                                         [emd%emitNum],   &
+                                         [emd%emitDiam],  &
+                                         [emd%emitSigma], &
+                                         naero            )
+                 ! -- Get the indices for emitted species and water.
+                 CALL bin_indices( nprof,nbins,st,en,  &
+                                   nc1, nc2, mb1, mb2, &
+                                   mb12, mb22          )
+                 
+                 ! Set the emission number and mass concentrations to the emission data instance
+                 edt%numc(st:en) = naero(1,1,st:en)
+                 edt%mass(mb1:mb12) = naero(1,1,st:en)*core(st:en)*spec%rholiq(nc1)
+                 ! water mass needed to have a 1um diameter ice particle
+                 edt%mass(mb2:mb22) = naero(1,1,st:en)*(corew(st:en)-core(st:en))*spec%rhoic
                  
               END IF
               
            
-             IF (emd%emitType ==3.OR.emd%emitType==5)  THEN
+             IF (emd%emitType ==3.OR.emd%emitType==5.OR.emd%emitType==6)  THEN
                 ASSOCIATE (emdT3 => emitType3(nprof))
                 CALL init_emitType3_map(emd%emitMap,x,y,z,emdT3%np)
                 CALL lagrangian_tracker(emdT3%ix,emdT3%iy,emdT3%iz,emdT3%t,emdT3%np, &
